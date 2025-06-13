@@ -1,0 +1,17 @@
+[package]
+name = "rust-cuda-compiler"
+version = "0.1.0"
+authors = ["killf <killf@foxmail.com>"]
+description = "A cuda compiler for rust."
+keywords = ["cuda"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1"
+proc-macro2 = "1.0"
+syn = "1.0"
+
+
