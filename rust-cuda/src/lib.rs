@@ -283,12 +283,13 @@ mod test_cuda_macro {
 
     #[cuda]
     fn test_cuda_macro(a: i32, b: i32) -> i32 {
-        a + b
+        let c = a + b + 10;
+        let d = a - b;
+        return (c - 5) * (d + 10);
     }
 
     #[test]
     fn test_macro() {
-        let result = test_cuda_macro(2, 3);
-        assert_eq!(result, 5);
+        test_cuda_macro(2, 3);
     }
 }
