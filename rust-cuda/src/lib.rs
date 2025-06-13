@@ -228,7 +228,7 @@ pub mod nvvm {
 }
 
 #[cfg(test)]
-mod tests {
+mod test_cuda {
     use super::*;
 
     #[test]
@@ -274,5 +274,21 @@ mod tests {
         println!("Kernel 计算结果: {:?}", host_data);
         cuda::free(device_ptr)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test_cuda_macro {
+    use rust_cuda_compiler::cuda;
+
+    #[cuda]
+    fn test_cuda_macro(a: i32, b: i32) -> i32 {
+        a + b
+    }
+
+    #[test]
+    fn test_macro() {
+        let result = test_cuda_macro(2, 3);
+        assert_eq!(result, 5);
     }
 }
