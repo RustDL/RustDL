@@ -1,0 +1,1 @@
+> https://docs.nvidia.com/cuda/archive/12.2.1/nvvm-ir-spec/index.html

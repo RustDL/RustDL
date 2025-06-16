@@ -1,3 +1,5 @@
+mod example;
+
 use std::ffi::{CStr, CString, c_uint};
 use std::os::raw::{c_char, c_int, c_void};
 
@@ -29,34 +31,24 @@ pub mod cuda {
         pub fn cuDeviceGetName(name: *mut c_char, len: c_int, device: c_int) -> CUresult;
         pub fn cuDeviceGetAttribute(pi: *mut c_int, attrib: c_int, device: c_int) -> CUresult;
         pub fn cuGetErrorString(error: CUresult, p_str: *mut *const c_char) -> CUresult;
-        pub fn cuCtxCreate(pctx: *mut *mut c_void, flags: c_uint, dev: c_int) -> CUresult;
-        pub fn cuModuleLoadDataEx(
-            module: *mut *mut c_void,
-            image: *const c_void,
-            num_options: c_uint,
-            options: *const c_uint,
-            option_values: *const *const c_void,
-        ) -> CUresult;
-        pub fn cuModuleGetFunction(
-            hfunc: *mut *mut c_void,
-            module: *mut c_void,
-            name: *const c_char,
-        ) -> CUresult;
-        pub fn cuMemAlloc(dptr: *mut u64, bytesize: usize) -> CUresult;
-        pub fn cuMemcpyHtoD(dstDevice: u64, srcHost: *const c_void, ByteCount: usize) -> CUresult;
-        pub fn cuMemcpyDtoH(dstHost: *mut c_void, srcDevice: u64, ByteCount: usize) -> CUresult;
-        pub fn cuMemFree(dptr: u64) -> CUresult;
+        pub fn cuCtxCreate(ctx: *mut *mut c_void, flags: c_uint, dev: c_int) -> CUresult;
+        pub fn cuModuleLoadDataEx(module: *mut *mut c_void, image: *const c_void, num_options: c_uint, options: *const c_uint, option_values: *const *const c_void) -> CUresult;
+        pub fn cuModuleGetFunction(func: *mut *mut c_void, module: *mut c_void, name: *const c_char) -> CUresult;
+        pub fn cuMemAlloc(ptr: *mut u64, byte_size: usize) -> CUresult;
+        pub fn cuMemcpyHtoD(dst_device: u64, src_host: *const c_void, byte_count: usize) -> CUresult;
+        pub fn cuMemcpyDtoH(dst_host: *mut c_void, src_device: u64, byte_count: usize) -> CUresult;
+        pub fn cuMemFree(ptr: u64) -> CUresult;
         pub fn cuLaunchKernel(
             f: *mut c_void,
-            gridDimX: u32,
-            gridDimY: u32,
-            gridDimZ: u32,
-            blockDimX: u32,
-            blockDimY: u32,
-            blockDimZ: u32,
-            sharedMemBytes: u32,
-            hStream: *mut c_void,
-            kernelParams: *mut *mut c_void,
+            grid_dim_x: u32,
+            grid_dim_y: u32,
+            grid_dim_z: u32,
+            block_dim_x: u32,
+            block_dim_y: u32,
+            block_dim_z: u32,
+            shared_mem_bytes: u32,
+            h_stream: *mut c_void,
+            kernel_params: *mut *mut c_void,
             extra: *mut *mut c_void,
         ) -> CUresult;
     }
@@ -82,9 +74,7 @@ pub mod cuda {
     pub fn get_device_name(device: i32) -> Result<String, CudaErrorWrapper> {
         let mut device_name = [0 as c_char; 256];
         check_cuda_error(unsafe { cuDeviceGetName(device_name.as_mut_ptr(), 256, device) })?;
-        Ok(unsafe { CStr::from_ptr(device_name.as_ptr()) }
-            .to_string_lossy()
-            .to_string())
+        Ok(unsafe { CStr::from_ptr(device_name.as_ptr()) }.to_string_lossy().to_string())
     }
     pub fn create_context(device: i32) -> Result<*mut c_void, CudaErrorWrapper> {
         let mut ctx = std::ptr::null_mut();
@@ -93,15 +83,7 @@ pub mod cuda {
     }
     pub fn load_module(ptx: &[u8]) -> Result<*mut c_void, CudaErrorWrapper> {
         let mut module = std::ptr::null_mut();
-        check_cuda_error(unsafe {
-            cuModuleLoadDataEx(
-                &mut module,
-                ptx.as_ptr() as *const c_void,
-                0,
-                std::ptr::null(),
-                std::ptr::null(),
-            )
-        })?;
+        check_cuda_error(unsafe { cuModuleLoadDataEx(&mut module, ptx.as_ptr() as *const c_void, 0, std::ptr::null(), std::ptr::null()) })?;
         Ok(module)
     }
     pub fn get_function(module: *mut c_void, name: &str) -> Result<*mut c_void, CudaErrorWrapper> {
@@ -124,45 +106,14 @@ pub mod cuda {
     pub fn free(ptr: u64) -> Result<(), CudaErrorWrapper> {
         check_cuda_error(unsafe { cuMemFree(ptr) })
     }
-    pub fn launch_kernel(
-        func: *mut c_void,
-        grid: (u32, u32, u32),
-        block: (u32, u32, u32),
-        params: &mut [*mut c_void],
-    ) -> Result<(), CudaErrorWrapper> {
-        check_cuda_error(unsafe {
-            cuLaunchKernel(
-                func,
-                grid.0,
-                grid.1,
-                grid.2,
-                block.0,
-                block.1,
-                block.2,
-                0,
-                std::ptr::null_mut(),
-                params.as_mut_ptr(),
-                std::ptr::null_mut(),
-            )
-        })
+    pub fn launch_kernel(func: *mut c_void, grid: (u32, u32, u32), block: (u32, u32, u32), params: &mut [*mut c_void]) -> Result<(), CudaErrorWrapper> {
+        check_cuda_error(unsafe { cuLaunchKernel(func, grid.0, grid.1, grid.2, block.0, block.1, block.2, 0, std::ptr::null_mut(), params.as_mut_ptr(), std::ptr::null_mut()) })
     }
     pub fn get_compute_capability(device: i32) -> Result<(i32, i32), CudaErrorWrapper> {
         let mut major = 0;
         let mut minor = 0;
-        check_cuda_error(unsafe {
-            cuDeviceGetAttribute(
-                &mut major,
-                CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                device,
-            )
-        })?;
-        check_cuda_error(unsafe {
-            cuDeviceGetAttribute(
-                &mut minor,
-                CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
-                device,
-            )
-        })?;
+        check_cuda_error(unsafe { cuDeviceGetAttribute(&mut major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, device) })?;
+        check_cuda_error(unsafe { cuDeviceGetAttribute(&mut minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, device) })?;
         Ok((major, minor))
     }
 }
@@ -172,18 +123,9 @@ pub mod nvvm {
 
     unsafe extern "system" {
         pub fn nvvmCreateProgram(prog: *mut NvvmProgram) -> i32;
-        pub fn nvvmAddModuleToProgram(
-            prog: NvvmProgram,
-            buffer: *const c_char,
-            size: usize,
-            name: *const c_char,
-        ) -> i32;
-        pub fn nvvmCompileProgram(
-            prog: NvvmProgram,
-            numOptions: c_int,
-            options: *const *const c_char,
-        ) -> i32;
-        pub fn nvvmGetCompiledResultSize(prog: NvvmProgram, bufferSizeRet: *mut usize) -> i32;
+        pub fn nvvmAddModuleToProgram(prog: NvvmProgram, buffer: *const c_char, size: usize, name: *const c_char) -> i32;
+        pub fn nvvmCompileProgram(prog: NvvmProgram, num_options: c_int, options: *const *const c_char) -> i32;
+        pub fn nvvmGetCompiledResultSize(prog: NvvmProgram, buffer_size_ret: *mut usize) -> i32;
         pub fn nvvmGetCompiledResult(prog: NvvmProgram, buffer: *mut c_char) -> i32;
         pub fn nvvmDestroyProgram(prog: *mut NvvmProgram) -> i32;
         pub fn nvvmGetErrorString(result: i32) -> *const c_char;
@@ -199,29 +141,19 @@ pub mod nvvm {
         }
     }
     pub fn compile_ll_to_ptx(filename: &str, arch: &str) -> Result<Vec<u8>, CudaErrorWrapper> {
-        let source = std::fs::read_to_string(filename)
-            .map_err(|e| CudaErrorWrapper::Other(e.to_string()))?;
+        let source = std::fs::read_to_string(filename).map_err(|e| CudaErrorWrapper::Other(e.to_string()))?;
         let filename = CString::new(filename).unwrap();
         let source = CString::new(source).unwrap();
         let mut program = std::ptr::null_mut();
         check_nvvm_error(unsafe { nvvmCreateProgram(&mut program) })?;
-        check_nvvm_error(unsafe {
-            nvvmAddModuleToProgram(
-                program,
-                source.as_ptr(),
-                source.count_bytes(),
-                filename.as_ptr(),
-            )
-        })?;
+        check_nvvm_error(unsafe { nvvmAddModuleToProgram(program, source.as_ptr(), source.count_bytes(), filename.as_ptr()) })?;
         let arch_cstr = CString::new(arch).unwrap();
         let options = [arch_cstr.as_ptr()];
         check_nvvm_error(unsafe { nvvmCompileProgram(program, 1, options.as_ptr()) })?;
         let mut ptx_size: usize = 0;
         check_nvvm_error(unsafe { nvvmGetCompiledResultSize(program, &mut ptx_size) })?;
         let mut buffer = vec![0u8; ptx_size];
-        check_nvvm_error(unsafe {
-            nvvmGetCompiledResult(program, buffer.as_mut_ptr() as *mut c_char)
-        })?;
+        check_nvvm_error(unsafe { nvvmGetCompiledResult(program, buffer.as_mut_ptr() as *mut c_char) })?;
         check_nvvm_error(unsafe { nvvmDestroyProgram(&mut program) })?;
         Ok(buffer)
     }
@@ -243,9 +175,9 @@ mod test_cuda {
         let (major_version, minor_version) = cuda::get_compute_capability(device)?;
         println!("计算能力: {}.{}", major_version, minor_version);
 
-        // 3. 编译 example.ll 为 PTX
+        // 3. 编译 simple.ll 为 PTX
         let arch = format!("-arch=compute_{}{}", major_version, minor_version);
-        let ptx = nvvm::compile_ll_to_ptx("example.ll", &arch)?;
+        let ptx = nvvm::compile_ll_to_ptx("example/simple.ll", &arch)?;
 
         // 4. 创建 CUDA 上下文
         let _context = cuda::create_context(device)?;
@@ -258,19 +190,11 @@ mod test_cuda {
         let n = 16;
         let mut host_data = vec![0i32; n];
         let device_ptr = cuda::malloc(n * std::mem::size_of::<i32>())?;
-        cuda::memcpy_htod(
-            device_ptr,
-            host_data.as_ptr() as *const c_void,
-            n * std::mem::size_of::<i32>(),
-        )?;
+        cuda::memcpy_htod(device_ptr, host_data.as_ptr() as *const c_void, n * std::mem::size_of::<i32>())?;
         let mut kernel_param = device_ptr as *mut c_void;
         let mut kernel_params = [&mut kernel_param as *mut _ as *mut c_void];
         cuda::launch_kernel(kernel, (1, 1, 1), (n as u32, 1, 1), &mut kernel_params)?;
-        cuda::memcpy_dtoh(
-            host_data.as_mut_ptr() as *mut c_void,
-            device_ptr,
-            n * std::mem::size_of::<i32>(),
-        )?;
+        cuda::memcpy_dtoh(host_data.as_mut_ptr() as *mut c_void, device_ptr, n * std::mem::size_of::<i32>())?;
         println!("Kernel 计算结果: {:?}", host_data);
         cuda::free(device_ptr)?;
         Ok(())

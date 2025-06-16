@@ -43,9 +43,9 @@ entry:
   %2 = call i32 @llvm.nvvm.read.ptx.sreg.tid.x()
   %add = add i32 %mul, %2
   %call = call i32 @ave(i32 %add, i32 %add)
-  %idxprom = sext i32 %add to i64
-  %arrayidx = getelementptr inbounds i32, i32* %data, i64 %idxprom
-  store i32 %call, i32* %arrayidx, align 4
+  %idx_prom = sext i32 %add to i64
+  %array_idx = getelementptr inbounds i32, i32* %data, i64 %idx_prom
+  store i32 %call, i32* %array_idx, align 4
   ret void
 }
 
